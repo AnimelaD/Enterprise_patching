@@ -1,0 +1,33 @@
+- name: Linux Prechecks
+  when: ansible_os_family != "Windows"
+  block:
+
+    - name: Check root disk usage
+      shell: df -h / | awk 'NR==2 {print $5}' | sed 's/%//'
+      register: root_usage
+
+    - name: Fail if disk > 80%
+      fail:
+        msg: "Disk usage too high: {{ root_usage.stdout }}%"
+      when: root_usage.stdout | int > 80
+
+    - name: Check pending updates
+      command: yum check-update
+      register: updates
+      failed_when: false
+
+    - name: Check reboot requirement
+      command: needs-restarting -r
+      register: reboot_flag
+      failed_when: false
+
+- name: Windows Prechecks
+  when: ansible_os_family == "Windows"
+  block:
+
+    - name: Check disk free space
+      win_shell: |
+        $disk = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
+        if (($disk.FreeSpace / $disk.Size) * 100 -lt 20) { exit 1 }
+      register: disk_check
+      failed_when: disk_check.rc != 0

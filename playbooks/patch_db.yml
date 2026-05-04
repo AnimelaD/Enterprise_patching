@@ -1,0 +1,4 @@
+- hosts: db
+  serial: 1
+  roles:
+    - patch_rhel
