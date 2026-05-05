@@ -36,7 +36,7 @@
       debug:
         msg: "Precheck completed for {{ inventory_hostname }}"
 
- - name: Windows Prechecks
+- name: Windows Prechecks
    when: ansible_os_family == "Windows"
    block:
 
