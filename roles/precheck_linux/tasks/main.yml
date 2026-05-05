@@ -1,5 +1,5 @@
 ---
-- name: Pre-Check Role: Verify System Health
+- name: Verify System Health
   hosts: all
   become: yes
   vars:
