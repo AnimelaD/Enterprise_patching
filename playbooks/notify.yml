@@ -1,0 +1,16 @@
+- name: Patching Workflow Notification
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+
+    - name: Final workflow report
+      debug:
+        msg: |
+          ===========================
+          PATCHING WORKFLOW SUMMARY
+          ===========================
+          Status: {{ workflow_status | default('UNKNOWN') }}
+          Pipeline: Web → App → DB → Windows
+          Executed via AAP Workflow
+          Timestamp: {{ lookup('pipe', 'date') }}
