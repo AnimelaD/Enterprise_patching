@@ -1,3 +1,4 @@
+---
 - name: Linux Prechecks
   when: ansible_os_family != "Windows"
   block:
@@ -16,29 +17,15 @@
       register: updates
       failed_when: false
 
-  rescue:
+    - name: Check reboot requirement
+      command: needs-restarting -r
+      register: reboot_flag
+      failed_when: false
 
-    - name: Mark precheck failure
-      set_fact:
-        precheck_status: "FAILED"
-
-    - name: Log failure
-      debug:
-        msg: "Precheck failed on {{ inventory_hostname }}"
-
-    - name: Stop execution
-      fail:
-        msg: "Stopping due to failed prechecks"
-
-  always:
-
-    - name: Log completion
-      debug:
-        msg: "Precheck completed for {{ inventory_hostname }}"
 
 - name: Windows Prechecks
-   when: ansible_os_family == "Windows"
-   block:
+  when: ansible_os_family == "Windows"
+  block:
 
     - name: Check disk free space
       win_shell: |
@@ -46,23 +33,3 @@
         if (($disk.FreeSpace / $disk.Size) * 100 -lt 20) { exit 1 }
       register: disk_check
       failed_when: disk_check.rc != 0
-
-  rescue:
-
-    - name: Mark failure
-      set_fact:
-        precheck_status: "FAILED"
-
-    - name: Log failure
-      debug:
-        msg: "Windows precheck failed"
-
-    - name: Stop execution
-      fail:
-        msg: "Stopping workflow due to failed prechecks"
-
-  always:
-
-    - name: Completion log
-      debug:
-        msg: "Windows precheck completed"
