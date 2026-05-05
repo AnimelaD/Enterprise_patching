@@ -1,0 +1,7 @@
+---
+- name: Windows Postcheck Validation
+  hosts: windowsec2
+  gather_facts: false
+
+  roles:
+    - postcheck_windows 

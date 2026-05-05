@@ -1,0 +1,8 @@
+---
+- name: Linux Postcheck Validation
+  hosts: web,app,db
+  become: true
+  gather_facts: true
+
+  roles:
+    - postcheck_linux 

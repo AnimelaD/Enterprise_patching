@@ -1,0 +1,20 @@
+---
+- name: Check system uptime
+  win_shell: |
+    (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
+  register: boot_time
+
+- name: Show uptime
+  debug:
+    msg: "Last boot time: {{ boot_time.stdout }}"
+
+- name: Check disk usage (C drive)
+  win_shell: |
+    $disk = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
+    ($disk.FreeSpace / $disk.Size) * 100
+  register: disk_free
+
+- name: Fail if disk critically low
+  fail:
+    msg: "Low disk space on C drive"
+  when: disk_free.stdout | float < 10

@@ -1,0 +1,25 @@
+---
+- name: Check system uptime
+  command: uptime
+  register: uptime_output
+
+- name: Show uptime
+  debug:
+    msg: "Uptime after patch: {{ uptime_output.stdout }}"
+
+- name: Check disk usage
+  shell: df -h / | awk 'NR==2 {print $5}'
+  register: disk_usage
+
+- name: Display disk usage
+  debug:
+    msg: "Root disk usage: {{ disk_usage.stdout }}"
+
+- name: Check reboot requirement
+  command: needs-restarting -r
+  register: reboot_required
+  failed_when: false
+
+- name: Show reboot status
+  debug:
+    msg: "Reboot required: {{ reboot_required.rc != 0 }}"
