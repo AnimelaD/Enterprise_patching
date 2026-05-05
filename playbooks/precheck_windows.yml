@@ -1,6 +1,6 @@
 ---
 - name: Windows Prechecks
-  hosts: windows
+  hosts: windowsec2
 
   roles:
     - precheck_windows
