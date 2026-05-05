@@ -1,0 +1,6 @@
+---
+- name: Windows Prechecks
+  hosts: windows
+
+  roles:
+    - precheck_windows

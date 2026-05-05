@@ -1,0 +1,22 @@
+---
+- name: Check root disk usage
+  shell: df -h / | awk 'NR==2 {print $5}' | sed 's/%//'
+  register: root_usage
+
+- name: Fail if disk usage > 80%
+  fail:
+    msg: "Disk usage too high: {{ root_usage.stdout }}%"
+  when: root_usage.stdout | int > 80
+
+- name: Check memory usage
+  shell: free -m | awk '/Mem:/ {print ($3/$2)*100}'
+  register: mem_usage
+
+- name: Show memory usage
+  debug:
+    msg: "Memory usage: {{ mem_usage.stdout | float | round(2) }}%"
+
+- name: Check reboot required
+  command: needs-restarting -r
+  register: reboot_check
+  failed_when: false

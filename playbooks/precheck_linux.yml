@@ -1,0 +1,7 @@
+---
+- name: Linux Prechecks
+  hosts: web,app,db
+  become: true
+
+  roles:
+    - precheck_linux
