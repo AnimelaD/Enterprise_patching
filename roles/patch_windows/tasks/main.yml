@@ -3,8 +3,24 @@
     category_names:
       - CriticalUpdates
       - SecurityUpdates
-    reboot: yes
+    reboot: no
+  register: update_result
 
-- name: Wait for system
+- name: Reboot if required
+  win_reboot:
+    reboot_timeout: 900
+  when: update_result.reboot_required
+
+- name: Wait for system to come back
   wait_for_connection:
     timeout: 600
+    delay: 15
+
+- name: Stabilization wait
+  pause:
+    seconds: 30
+
+- name: Validate system is up
+  win_shell: hostname
+  register: win_check
+  changed_when: false

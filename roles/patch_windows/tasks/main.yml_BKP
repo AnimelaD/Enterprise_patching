@@ -1,0 +1,10 @@
+- name: Install updates
+  win_updates:
+    category_names:
+      - CriticalUpdates
+      - SecurityUpdates
+    reboot: yes
+
+- name: Wait for system
+  wait_for_connection:
+    timeout: 600
