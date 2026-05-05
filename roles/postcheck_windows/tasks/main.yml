@@ -9,17 +9,17 @@
   debug:
     msg: "{{ boot_time.stdout | default(boot_time.stdout_lines | default('Uptime not available')) }}" 
 
-- name: Capture disk usage
+- name: Check C drive free space
   win_shell: |
     $disk = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
     ($disk.FreeSpace / $disk.Size) * 100
   register: disk_free
 
-- name: Normalize value
+- name: Normalize disk usage
   set_fact:
     disk_usage: "{{ disk_free.stdout | default(disk_free.stdout_lines[0] | default(100)) | float }}"
 
-- name: Fail if low disk
+- name: Fail if disk critically low
   fail:
-    msg: "Low disk space"
-  when: disk_usage < 10
+    msg: "Low disk space on C drive"
+  when: disk_usage | float < 10
