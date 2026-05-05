@@ -1,7 +1,11 @@
 ---
-- name: Linux Prechecks
-  hosts: web,app,db
+- name: Precheck Execution
+  hosts: rhel 
   become: true
+
+  vars:
+    disk_threshold: 80
+    mem_threshold: 90
 
   roles:
     - precheck_linux
