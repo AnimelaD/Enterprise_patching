@@ -1,22 +1,52 @@
 ---
-- name: Check root disk usage
-  shell: df -h / | awk 'NR==2 {print $5}' | sed 's/%//'
-  register: root_usage
+- name: Pre-Check Role: Verify System Health
+  hosts: all
+  become: yes
+  vars:
+    disk_threshold: 80
+    mem_threshold: 90.0
 
-- name: Fail if disk usage > 80%
-  fail:
-    msg: "Disk usage too high: {{ root_usage.stdout }}%"
-  when: root_usage.stdout | int > 80
+  tasks:
+    - name: "PRE-CHECK | Extract Root Disk Usage"
+      # Grabs the percentage of the root partition
+      shell: df -h / --output=pcent | tail -1 | sed 's/%//' | xargs
+      register: root_usage_raw
+      changed_when: false
 
-- name: Check memory usage
-  shell: free -m | awk '/Mem:/ {print ($3/$2)*100}'
-  register: mem_usage
+    - name: "PRE-CHECK | Stop if Disk Usage is too high"
+      ansible.builtin.fail:
+        msg: "FAILED: Disk usage on / is at {{ root_usage_raw.stdout }}%. Threshold is {{ disk_threshold }}%."
+      when: root_usage_raw.stdout | int > disk_threshold
 
-- name: Show memory usage
-  debug:
-    msg: "Memory usage: {{ mem_usage.stdout | float | round(2) }}%"
+    - name: "PRE-CHECK | Calculate Memory Usage"
+      # Formula: ((Total - Available) / Total) * 100
+      shell: free | awk '/Mem:/ {print (($2-$7)/$2)*100}'
+      register: mem_usage_raw
+      changed_when: false
 
-- name: Check reboot required
-  command: needs-restarting -r
-  register: reboot_check
-  failed_when: false
+    - name: "PRE-CHECK | Stop if Memory Usage is too high"
+      ansible.builtin.fail:
+        msg: "FAILED: Memory usage is at {{ mem_usage_raw.stdout | float | round(2) }}%. Threshold is {{ mem_threshold }}%."
+      when: mem_usage_raw.stdout | float > mem_threshold
+
+    - name: "PRE-CHECK | Check for Pending Reboot"
+      # We check the exit code: 1 = Reboot Needed, 0 = Clean
+      ansible.builtin.command: needs-restarting -r
+      register: reboot_check
+      failed_when: false
+      changed_when: false
+
+    - name: "PRE-CHECK | Status Summary"
+      ansible.builtin.debug:
+        msg:
+          - "--- System Health Report ---"
+          - "Disk: {{ root_usage_raw.stdout }}% (Limit: {{ disk_threshold }}%)"
+          - "Memory: {{ mem_usage_raw.stdout | float | round(2) }}% (Limit: {{ mem_threshold }}%)"
+          - "Reboot Required: {{ 'YES' if reboot_check.rc == 1 else 'NO' }}"
+          - "---------------------------"
+
+    - name: "PRE-CHECK | Warning: Reboot Required"
+      ansible.builtin.pause:
+        prompt: "This system requires a reboot to apply updates. Press ENTER to acknowledge and continue, or CTRL+C to abort."
+      when: reboot_check.rc == 1
+

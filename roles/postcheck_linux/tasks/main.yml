@@ -1,25 +1,61 @@
 ---
-- name: Check system uptime
-  command: uptime
-  register: uptime_output
+- name: RHEL Post-Patching Verification
+  hosts: all
+  become: yes
+  vars:
+    disk_threshold: 90  # Alert if disk is over 90%
 
-- name: Show uptime
-  debug:
-    msg: "Uptime after patch: {{ uptime_output.stdout }}"
+  tasks:
+    - name: "POST-PATCH | Check System Uptime"
+      ansible.builtin.command: uptime -p
+      register: uptime_output
+      changed_when: false
 
-- name: Check disk usage
-  shell: df -h / | awk 'NR==2 {print $5}'
-  register: disk_usage
+    - name: "POST-PATCH | Display Uptime"
+      ansible.builtin.debug:
+        msg: "System has been up for: {{ uptime_output.stdout }}"
 
-- name: Display disk usage
-  debug:
-    msg: "Root disk usage: {{ disk_usage.stdout }}"
+    - name: "POST-PATCH | Check Root Disk Usage"
+      # Returns only the number, stripped of the '%' sign
+      ansible.builtin.shell: df / --output=pcent | tail -1 | sed 's/%//' | xargs
+      register: disk_usage_raw
+      changed_when: false
 
-- name: Check reboot requirement
-  command: needs-restarting -r
-  register: reboot_required
-  failed_when: false
+    - name: "POST-PATCH | Fail if Disk Usage is Critically High"
+      ansible.builtin.fail:
+        msg: "CRITICAL: Disk usage is at {{ disk_usage_raw.stdout }}%. Threshold is {{ disk_threshold }}%."
+      when: disk_usage_raw.stdout | int > disk_threshold
 
-- name: Show reboot status
-  debug:
-    msg: "Reboot required: {{ reboot_required.rc != 0 }}"
+    - name: "POST-PATCH | Verify Kernel Version"
+      ansible.builtin.command: uname -r
+      register: kernel_version
+      changed_when: false
+
+    - name: "POST-PATCH | Display Current Kernel"
+      ansible.builtin.debug:
+        msg: "Running Kernel: {{ kernel_version.stdout }}"
+
+    - name: "POST-PATCH | Check Reboot Status"
+      # needs-restarting -r returns 1 if a reboot is STILL needed
+      ansible.builtin.command: needs-restarting -r
+      register: reboot_check
+      failed_when: false
+      changed_when: false
+
+    - name: "POST-PATCH | Report Reboot Status"
+      ansible.builtin.debug:
+        msg: >
+          {{ 'WARNING: System still requires a reboot to apply all patches.' 
+             if reboot_check.rc != 0 
+             else 'SUCCESS: System is fully patched and no reboot is pending.' }}
+
+    - name: "POST-PATCH | Check Failed Services"
+      # This is crucial for RHEL: Did any services fail to start after the reboot?
+      ansible.builtin.command: systemctl list-units --state=failed --no-legend
+      register: failed_services
+      changed_when: false
+
+    - name: "POST-PATCH | Alert on Failed Services"
+      ansible.builtin.debug:
+        msg: "The following services failed: {{ failed_services.stdout }}"
+      when: failed_services.stdout != ""

@@ -1,24 +1,53 @@
 ---
-- name: Check C drive free space
-  win_shell: |
-    $disk = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
-    ($disk.FreeSpace / $disk.Size) * 100
-  register: disk_free
+- name: Windows Pre-Check Role
+  hosts: windows
+  gather_facts: yes
+  vars:
+    disk_free_threshold: 20
+    mem_used_threshold: 90
 
-- name: Fail if disk usage is low
-  fail:
-    msg: "Low disk space on C drive"
-  when: disk_free.stdout | float < 20
+  tasks:
+    - name: "PRE-CHECK (WIN) | Calculate C: Drive Free Space %"
+      win_shell: |
+        $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+        [Math]::Round(($disk.FreeSpace / $disk.Size) * 100, 2)
+      register: disk_free_raw
+      changed_when: false
 
-- name: Check pending reboot
-  win_shell: |
-    if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending") {
-      echo "Reboot Required"
-    } else {
-      echo "No Reboot Needed"
-    }
-  register: reboot_status
+    - name: "PRE-CHECK (WIN) | Stop if C: Drive Free Space < {{ disk_free_threshold }}%"
+      ansible.builtin.fail:
+        msg: "CRITICAL: Only {{ disk_free_raw.stdout | trim }}% space remaining on C:. Threshold is {{ disk_free_threshold }}%."
+      when: disk_free_raw.stdout | trim | float < disk_free_threshold
 
-- name: Show reboot status
-  debug:
-    msg: "{{ reboot_status.stdout }}"
+    - name: "PRE-CHECK (WIN) | Calculate Memory Usage %"
+      win_shell: |
+        $os = Get-CimInstance Win32_OperatingSystem
+        $pctUsed = (($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / $os.TotalVisibleMemorySize) * 100
+        [Math]::Round($pctUsed, 2)
+      register: mem_usage_raw
+      changed_when: false
+
+    - name: "PRE-CHECK (WIN) | Stop if Memory Usage > {{ mem_used_threshold }}%"
+      ansible.builtin.fail:
+        msg: "CRITICAL: Memory usage is at {{ mem_usage_raw.stdout | trim }}%. Threshold is {{ mem_used_threshold }}%."
+      when: mem_usage_raw.stdout | trim | float > mem_used_threshold
+
+    - name: "PRE-CHECK (WIN) | Check Multiple Pending Reboot Keys"
+      # Windows has several places where reboots hide. This script checks the 3 most common.
+      win_shell: |
+        $reboot = $false
+        if (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending" -ErrorAction SilentlyContinue) { $reboot = $true }
+        if (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired" -ErrorAction SilentlyContinue) { $reboot = $true }
+        if (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager" -Name "PendingFileRenameOperations" -ErrorAction SilentlyContinue) { $reboot = $true }
+        if ($reboot) { "Reboot Required" } else { "No Reboot Needed" }
+      register: win_reboot_status
+      changed_when: false
+
+    - name: "PRE-CHECK (WIN) | Final Health Summary"
+      ansible.builtin.debug:
+        msg: 
+          - "--- Windows Health Report ---"
+          - "C: Drive Free: {{ disk_free_raw.stdout | trim }}% (Min: {{ disk_free_threshold }}%)"
+          - "Memory In-Use: {{ mem_usage_raw.stdout | trim }}% (Max: {{ mem_used_threshold }}%)"
+          - "Reboot Status: {{ win_reboot_status.stdout | trim }}"
+          - "----------------------------"

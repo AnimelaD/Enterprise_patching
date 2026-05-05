@@ -1,25 +1,58 @@
 ---
+- name: Windows Post-Patching Verification
+  hosts: windows
+  gather_facts: yes
+  vars:
+    disk_free_threshold: 10
 
-- name: Check system uptime
-  win_shell: |
-    (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
-  register: boot_time
+  tasks:
+    - name: "POST-PATCH | Get System Boot Time"
+      win_shell: |
+        $os = Get-CimInstance Win32_OperatingSystem
+        $os.LastBootUpTime
+      register: boot_time
+      changed_when: false
 
-- name: Show uptime
-  debug:
-    msg: "{{ boot_time.stdout | default(boot_time.stdout_lines | default('Uptime not available')) }}" 
+    - name: "POST-PATCH | Display Boot Time"
+      debug:
+        msg: "System last booted at: {{ boot_time.stdout | trim }}"
 
-- name: Check C drive free space
-  win_shell: |
-    $disk = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
-    ($disk.FreeSpace / $disk.Size) * 100
-  register: disk_free
+    - name: "POST-PATCH | Check C: Drive Space"
+      win_shell: |
+        $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+        [Math]::Round(($disk.FreeSpace / $disk.Size) * 100, 2)
+      register: disk_free_raw
+      changed_when: false
 
-- name: Normalize disk usage
-  set_fact:
-    disk_usage: "{{ disk_free.stdout | default(disk_free.stdout_lines[0] | default(100)) | float }}"
+    - name: "POST-PATCH | Fail if Disk Critically Low"
+      fail:
+        msg: "Post-patch cleanup needed! Only {{ disk_free_raw.stdout | trim }}% left on C:."
+      when: disk_free_raw.stdout | trim | float < disk_free_threshold
 
-- name: Fail if disk critically low
-  fail:
-    msg: "Low disk space on C drive"
-  when: disk_usage | float < 10
+    - name: "POST-PATCH | Check for Critical Services"
+      # Verifies that services set to 'Automatic' are actually running
+      win_service:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - WinRM
+        - Spooler # Example: replace with your app-specific services
+      register: service_check
+      ignore_errors: yes
+
+    - name: "POST-PATCH | Check for Still-Pending Reboot"
+      # Sometimes one reboot isn't enough for cumulative updates
+      win_shell: |
+        $reboot = $false
+        if (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending" -ErrorAction SilentlyContinue) { $reboot = $true }
+        if ($reboot) { "STILL_PENDING" } else { "CLEAN" }
+      register: post_reboot_check
+      changed_when: false
+
+    - name: "POST-PATCH | Final Summary"
+      debug:
+        msg: 
+          - "--- Post-Patch Results ---"
+          - "Disk Free: {{ disk_free_raw.stdout | trim }}%"
+          - "Pending Reboot: {{ post_reboot_check.stdout | trim }}"
+          - "Services Status: {{ 'Issues Detected' if service_check.failed else 'All Healthy' }}"

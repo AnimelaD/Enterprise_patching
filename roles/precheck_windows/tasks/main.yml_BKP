@@ -1,0 +1,24 @@
+---
+- name: Check C drive free space
+  win_shell: |
+    $disk = Get-WmiObject Win32_LogicalDisk -Filter "DeviceID='C:'"
+    ($disk.FreeSpace / $disk.Size) * 100
+  register: disk_free
+
+- name: Fail if disk usage is low
+  fail:
+    msg: "Low disk space on C drive"
+  when: disk_free.stdout | float < 20
+
+- name: Check pending reboot
+  win_shell: |
+    if (Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending") {
+      echo "Reboot Required"
+    } else {
+      echo "No Reboot Needed"
+    }
+  register: reboot_status
+
+- name: Show reboot status
+  debug:
+    msg: "{{ reboot_status.stdout }}"
