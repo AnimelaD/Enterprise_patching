@@ -1,4 +1,5 @@
 ---
+
 - name: Check system uptime
   win_shell: |
     (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
@@ -6,7 +7,7 @@
 
 - name: Show uptime
   debug:
-    msg: "Last boot time: {{ boot_time.stdout }}"
+    msg: "{{ boot_time.stdout_lines[0] if boot_time.stdout_lines is defined else boot_time.stdout }}"
 
 - name: Check disk usage (C drive)
   win_shell: |
