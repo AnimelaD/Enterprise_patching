@@ -1,6 +1,11 @@
 ---
-- name: Windows Prechecks
+- name: Windows Precheck Execution
   hosts: windowsec2
+  gather_facts: yes
+
+  vars:
+    disk_free_threshold: 20
+    mem_used_threshold: 90
 
   roles:
     - precheck_windows
