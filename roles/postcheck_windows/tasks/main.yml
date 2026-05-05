@@ -7,7 +7,7 @@
 
 - name: Show uptime
   debug:
-    msg: "{{ boot_time.stdout_lines[0] if boot_time.stdout_lines is defined else boot_time.stdout }}"
+    msg: "{{ boot_time.stdout | default(boot_time.stdout_lines | default('Uptime not available')) }}" 
 
 - name: Check disk usage (C drive)
   win_shell: |
