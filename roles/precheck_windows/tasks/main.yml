@@ -8,7 +8,7 @@
 - name: Fail if C Drive Free Space below threshold
   ansible.builtin.fail:
     msg: "Only {{ disk_free_raw.stdout | trim }}% space remaining on C:"
-  when: disk_free_raw.stdout | trim | float < disk_free_threshold
+  when: (disk_free_raw.stdout | default(disk_free_raw.stdout_lines[0]) | trim | float) < disk_free_threshold 
 
 - name: Calculate Memory Usage %
   win_shell: |
