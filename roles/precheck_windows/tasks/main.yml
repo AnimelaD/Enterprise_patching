@@ -25,7 +25,7 @@
 - name: PRE-CHECK (WIN) | Fail if Disk Space Low
   fail:
     msg: "CRITICAL: Only {{ disk_free }}% space remaining on C:. Threshold is {{ disk_free_threshold }}%"
-  when: disk_free < disk_free_threshold
+  when: disk_free | float < disk_free_threshold | float 
 
 
 # -------------------------------
@@ -55,7 +55,7 @@
 - name: PRE-CHECK (WIN) | Fail if Memory Usage High
   fail:
     msg: "CRITICAL: Memory usage is {{ mem_usage }}%. Threshold is {{ mem_used_threshold }}%"
-  when: mem_usage > mem_used_threshold
+  when: mem_usage | float > mem_used_threshold | float 
 
 
 # -------------------------------
