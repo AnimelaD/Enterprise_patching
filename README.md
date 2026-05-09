@@ -116,7 +116,6 @@ All credentials are managed in **AAP**, including:
 * ✔ Linux SSH credentials
 * ✔ Windows WinRM credentials
 * ✔ Privilege escalation (sudo)
-* ✔ Cloud/API credentials (if applicable)
 
 👉 No secrets are stored in this repository.
 
